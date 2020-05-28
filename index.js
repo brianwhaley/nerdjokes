@@ -1,123 +1,76 @@
-console.log('Loading nerdjokes');
+console.log('Loading Nerd Jokes');
 
-var nerdhelpers = require("./nerdjokes-helpers");
-var awstools = require("./tools-aws");
-var slacktools = require("./tools-slack");
-let env;
+var Event = require("./event");
+var Joke = require("./joke");
+var Schedule = require("./schedule");
+
 let log = true;
-
 
 
 
 exports.handler = async function(data, context) {
     // ==#####== NERDJOKES APP SETUP ==#####==
-    if(log) console.log('NERDJOKES - Received DATA:', JSON.stringify(data));
-    const stageVars = data.stageVariables;
-    if(log) console.log('NERDJOKES - Received Stage Variables:', JSON.stringify(stageVars));
-    let b_token;
-    let v_token = (stageVars) ? stageVars.VERIFICATION_TOKEN : undefined ;
-    let c_id = (stageVars) ? stageVars.CLIENT_ID : undefined ;
-    let c_secret = (stageVars) ? stageVars.CLIENT_SECRET : undefined ;
-    env = (stageVars) ? stageVars.ENV : "PROD" ;
-    if(log) console.log('NERDJOKES - Received Context:', JSON.stringify(context));
-    let event ;
+    if(log) console.log("NERDJOKES Start - Data: " , data);
     let result ;
-    let team_id ;
-    
-    if (data.httpMethod == "POST"){
-        if(log) console.log("NERDJOKES - RECEIVED POST");
-        if(data.headers['Content-Type'] == "application/json"){
-        if(log) console.log("NERDJOKES - RECEIVED POST - JSON");
-            event = (typeof data.body == "string") ? JSON.parse(data.body) : data.body ;
-        } else if(data.headers['Content-Type'] == 'application/x-www-form-urlencoded' ){
-            if(log) console.log("NERDJOKES - RECEIVED POST - URLENCODED");
-            event = slacktools.querystringToJSON(data.body);
-            if(event.payload) {
-                if(log) console.log("NERDJOKES - RECEIVED PAYLOAD : ", JSON.stringify(event));
-                event = JSON.parse(event.payload);
-            }
-        }
-    } else if (data.httpMethod == "GET"){
-        if(log) console.log("NERDJOKES - RECEIVED GET");
-        if(data.queryStringParameters){
-            // ==#####== OAUTH ==#####==
-            event = data.queryStringParameters;
-            if (log) console.log("NERDJOKES - Event Code : ", event.code);
-        } else if(data.body == null && data.queryStringParameters == null) {
-            // ==#####== DIRECT INSTALL FROM APP DIRECTORY ==#####
-            if(log) console.log("NERDJOKES - DIRECT INSTALL FROM APP DIRECTORY ");
-            var url = "https://slack.com/oauth/v2/authorize" ;
-            var qs = "client_id=" + c_id  + "&scope=chat:write,commands,im:write" ; 
-            var msg = {
-                statusCode: 302,
-                headers: { "Location": url + "?" + qs },
-                body: null
-            };
-            if(log) console.log("NERDJOKES - DIRECT INSTALL FROM APP DIRECTORY - Message", msg);
-            return msg;
-        }
+    var event = new Event(data);
+    if(data.body == null && data.queryStringParameters == null) {
+        return event.directInstallRedirect(data);
     }
-    if(log) console.log('NERDJOKES - Received Event:', JSON.stringify(event));
-    
     
     
     if (event.code) {
         // ==#####== OAUTH REQUEST - APP INSTALL ==#####==
         // ==#####== THIS IS A WEB BASED REQUEST ==#####==
-        result = await slacktools.oAuthVerify(event, {
-            client_id: c_id,
-            client_secret: c_secret,
-            env: env
-        });
+        if(log) console.log("NERDJOKES - Event Code : " , event.code);
+        result = event.oAuthVerify();
         return result;
-    } else if (event.hasOwnProperty("team_id") || event.hasOwnProperty("team")) {
-        // ==#####== CALCULATE TEAM ID ==#####==
-        team_id = slacktools.getTeamId(event, env) ;
-        if(log) console.log("NERDJOKES - Team ID : ", team_id);
-        // ==#####== GET AUTH TOKEN ==#####==
-        b_token = await nerdhelpers.getAccessToken({ team_id: team_id });
+    } else if(event.command && event.text && event.text == "getjokejson"){
+        // ==#####== SKIP OVER ACCESS TOKEN ==#####==
+        // ==#####== THIS IS FOR NERDJOKES ALEXA SKILL ==#####==
+    } else if(event.team_id){
+        if(log) console.log("NERDJOKES - Getting Access Token");
+        event.b_token = await event.getAccessToken();
+        if(log) console.log("NERDJOKES - Got Access Token : " , event.b_token);
     }
-    
-    
-    
+
+
     if (event.hasOwnProperty("type") || event.hasOwnProperty("event")) {
         let event_type;
-        if(event.hasOwnProperty("event")) { event_type = event.event.type; } else if (event.hasOwnProperty("type")) { event_type = event.type; }
+        if(event.hasOwnProperty("event")) { event_type = event.event.type; } 
+        else if (event.hasOwnProperty("type")) { event_type = event.type; }
         if(log) console.log("NERDJOKES - Event Type: " , event_type);
         switch (event_type) {
             case "url_verification": 
                 // ==#####== VERIFY EVENT CALLBACK URL ==#####==
                 if(log) console.log("NERDJOKES - URL Verification"); 
-                result = slacktools.urlVerify(event.challenge, event.token, v_token); 
+                result = event.verifyURL(); 
                 break;
             case "app_uninstalled": 
                 // ==#####== APP UNINSTALLED _ DELETE ALL DATA FOR THAT WORKSPACE ==#####==
-                if(log) console.log("NERDJOKES- App Uninstalled");
-                team_id = slacktools.getTeamId(event, env);
-                let cleaned = await nerdhelpers.cleanUninstall({
-                    team_id: team_id
-                });
+                if(log) console.log("NERDJOKES - App Uninstalled");
+                await event.cleanUninstall();
                 // ==#####== LOG EVENT ==#####==
-                var logged = await slacktools.logEvent(event, { team_id: team_id });
+                await event.logEvent();
                 break;
             case "view_submission":
                 // ==#####== DIALOG BOX SUBMITTED ==#####==
                 if(log) console.log("NERDJOKES - View Submission");
+                var schedule ;
                 if(event.view.callback_id == 'newjoke-submit'){
 	                if(log) console.log("NERDJOKES - New Joke Submitted");
-                    var res = await nerdhelpers.addNewJokeSubmit(event);
-                    var res = await nerdhelpers.addNewJokeThankYou(event, { b_token: b_token });
+                    var joke = new Joke();
+                    await joke.addNewJokeSubmit(event);
                 } else if(event.view.callback_id == "newjokeschedule-submit"){
                     if(log) console.log("NERDJOKES - New Joke Schedule Submitted");
-                    var res = await nerdhelpers.addNewScheduleSubmit(event);
-                    var res = await nerdhelpers.addNewScheduleThankYou(event, { b_token: b_token });
+                    schedule = new Schedule();
+                    await schedule.addNewScheduleSubmit(event);
                 } else if(event.view.callback_id == "deleteschedule-submit"){
                     if(log) console.log("NERDJOKES - Delete Schedule Submitted");
-                    var res = await nerdhelpers.deleteScheduleSubmit(event);
-                    var res = await nerdhelpers.deleteScheduleThankYou(event, { b_token: b_token });
+                    schedule = new Schedule();
+                    await schedule.deleteScheduleSubmit(event);
                 }
                 // ==#####== LOG EVENT ==#####==
-                var logged = await slacktools.logEvent(event, { team_id: team_id });
+                await event.logEvent();
                 // ==#####== NULL SUBMIT CLOSES VIEW ==#####==
                 result = null;
                 break;
@@ -126,7 +79,6 @@ exports.handler = async function(data, context) {
                 if(log) console.log("NERDJOKES - View Closed");
                 break;
             case "interactive_message":
-                team_id = slacktools.getTeamId(event, env);
                 if(log) console.log("NERDJOKES - Interactive Message");
                 // ==#####== INTERACTIVE MESSAGES ==#####==
                 // INTERACTIVE MESSAGES REPLACED WITH BLOCK MESSAGES
@@ -137,29 +89,22 @@ exports.handler = async function(data, context) {
     }
     
     
-    
     // ==#####== SLASH COMMANDS ==#####== 
     if(event.command) {
         if(log) console.log("NERDJOKES - Slash Command");
-        team_id = slacktools.getTeamId(event, env);
-        if((event.command == "/nerdjokes") || (event.command == "/stkrdev")){
+        if((event.command == "/nerdjokes") || (event.command == "/nerdjokesdev")){
             if(event.text) {
                 // ==#####== SLASH COMMAND WITH TEXT ==#####==
-                const slashData = {
-                    b_token: b_token,
-                    team_id: team_id,
-                    env: env
-                };
-                result = await nerdhelpers.processSlashCommand(event, slashData);
+                result = await event.processSlashCommand();
             } else if (event.text.length == 0) {
                 // ==#####== SEND RANDOM JOKE ==#####==
-                let sent = await nerdhelpers.sendJoke(event,{b_token: b_token});
+                event.text = "getjoke";
+                result = await event.processSlashCommand();
             }
             // ==#####== LOG EVENT ==#####==
-            var logged = await slacktools.logEvent(event, { team_id: team_id });
+            await event.logEvent();
         } 
     }
-    
     
     
     if(log) console.log('NERDJOKES END - Response Results:', result);
@@ -168,13 +113,16 @@ exports.handler = async function(data, context) {
         statusCode: 200,
         headers: {
             "Content-type": "application/json; charset=utf-8",
-            "Authorization": "Bearer " + b_token
+            "Authorization": "Bearer " + event.b_token
         }
     };
+    if(log) console.log("NERDJOKES END - typeof result : ", typeof result);
     if(result == null){
     } else if(typeof result === "object") {
-        if(result.hasOwnProperty("challenge")){
+        try{
             finalMsg.body = JSON.stringify( result );
+        } catch(error) {
+            finalMsg.body = result ;
         }
     } else if( (result) && (result.length > 0) ){
         finalMsg.body = JSON.stringify({
@@ -186,4 +134,5 @@ exports.handler = async function(data, context) {
     }
     if(log) console.log('NERDJOKES END - Final Message :', finalMsg);
     return finalMsg;
+
 };
