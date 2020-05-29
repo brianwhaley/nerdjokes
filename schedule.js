@@ -189,7 +189,7 @@ module.exports = class Schedule {
         var items = [];
         for (var i = 0; i < 24; i++) {
             var item = {};
-            var hour = (i > 12) ? (i - 12 + ":00pm") : (((i==0) ? 12 : i ) + ":00am");
+            var hour = (i < 12) ? (((i==0) ? 12 : i ) + ":00am") : (((i==12) ? 12 : i - 12 ) + ":00pm") ;
             item.text = { "type": "plain_text", "text": hour } ;
             item.value = i.toString();
             items.push(item);
@@ -467,20 +467,23 @@ module.exports = class Schedule {
                     "token": myschedule.b_token,
                     "team_id": myschedule.team_id,
                     "channel_id": myschedule.channel_id,
-                    "command": "/nerdjokes",
+                    "command": event.command,
                     "text": "getjoke",
                 }
             };
             if(log) console.log("RUN SCHEDULE - Recursive Lambda - Payload : ", lambdaPayload); 
             let lambdaParams = {
-                FunctionName: 'nerdjokes:' + event.env,
-                InvocationType: 'Event',
+                FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME + ':' + event.env,
+                // ==#####== Event == Async, RequestResponse == Sync ==#####==
+                InvocationType: 'Event', 
                 Payload: JSON.stringify(lambdaPayload)
             };
             if(log) console.log("RUN SCHEDULE - Recursive Lambda - Params : ", lambdaParams);
             var lambda = new AWS.LAMBDA(); 
-            lambda.callLambda(lambdaParams);
+            await lambda.callLambda(lambdaParams);
+            // ==#####== RESPONSE 200 FOR EVENT ==#####==
         }
+        return null;
     }
 
 };

@@ -10,13 +10,13 @@ Resources:
       CodeUri: .
       Description: ''
       MemorySize: 256
-      Timeout: 30
+      Timeout: 6
       Role: 'arn:aws:iam::971579260814:role/tech-jokes-role'
       Events:
         Schedule1:
           Type: Schedule
           Properties:
-            Schedule: cron(0 0-23 * * ? *)
+            Schedule: cron(0-59 0-23 * * ? *)
         Api1:
           Type: Api
           Properties:
