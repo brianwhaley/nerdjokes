@@ -49,6 +49,9 @@ module.exports = class Event {
         }
         
         this.setTeamId();
+        this.setUserId();
+        this.setChannelId();
+        this.setEventType();
         
         if(log) console.log('NERDJOKES - Event:', JSON.stringify(this));
         return this ;
@@ -60,13 +63,15 @@ module.exports = class Event {
 // ==========================================
 
 
-    querystringToJSON(qs) {  
+    querystringToJSON(qs) {
+        if(log) console.log("QUERYSTRING TO JSON");
         var pairs = qs.split('&');
         var result = {};
-        pairs.forEach(function(pair) {
+        for(var key in pairs) {
+            var pair = pairs[key];
             pair = pair.split('=');
             result[pair[0]] = decodeURIComponent(pair[1] || '');
-        });
+        }
         return JSON.parse(JSON.stringify(result));
     }
     
@@ -76,7 +81,6 @@ module.exports = class Event {
         if(log) console.log("PROCESS SLASH COMMAND - Text : ", this.text);
         var cmd = this.command ;
         var joke, schedule ;
-        let result ;
         let returntext ;
         switch (this.text) {
             case "help": 
@@ -89,20 +93,19 @@ module.exports = class Event {
                 "* Type '"+cmd+" addschedule' to add or edit a schedule for delivering jokes to the current channel. \n" +
                 "* Type '"+cmd+" deleteschedule' to delete a schedule for delivering jokes to the current channel. \n" +
                 "* Type '"+cmd+" version' to see what version of NerdJokes you are using. \n" ;
-                await this.slashCommandMessage(returntext);
-                result = null ;
+                await new Message().sendTextMessage(this,returntext);
                 break;
             case "bug": 
                 if(log) console.log("PROCESS SLASH COMMAND - Bug");
-                returntext = "If you want to report a bug, email " + this.email_link + " or join the bug channel on the pixelated-tech.slack.com workspace." ;
-                await this.slashCommandMessage(returntext);
-                result = null ;
+                returntext = "If you want to report a bug, email " + this.email_link + 
+                    " or join the bug channel on the pixelated-tech.slack.com workspace." ;
+                await new Message().sendTextMessage(this,returntext);
                 break;
             case "support": 
                 if(log) console.log("PROCESS SLASH COMMAND - Support");
-                returntext = "If you need some support, email " + this.email_link + " or join the support channel on the pixelated-tech.slack.com workspace.";
-                await this.slashCommandMessage(returntext);
-                result = null ;
+                returntext = "If you need some support, email " + this.email_link + 
+                    " or join the support channel on the pixelated-tech.slack.com workspace.";
+                await new Message().sendTextMessage(this,returntext);
                 break;
             case "joke":
             case "random":
@@ -111,32 +114,29 @@ module.exports = class Event {
                 joke = new Joke();
                 await joke.load();
                 await joke.sendJoke(this);
-                result = null;
                 break;
             case "getjokejson":
                 // ==#####== SEND RANDOM JOKE ==#####==
                 joke = new Joke();
                 await joke.load();
-                result = joke.raw ;
-                break; 
+                var result = joke.raw ;
+                return result;
+                // break; 
             case "addjoke": 
                 if(log) console.log("PROCESS SLASH COMMAND - Add");
                 joke = new Joke();
                 await joke.load();
                 await joke.addNewJoke(this);
-                result = null;
                 break;
             case "addschedule": 
                 if(log) console.log("PROCESS SLASH COMMAND - Add Schedule");
                 schedule = new Schedule();
                 await schedule.addNewSchedule(this);
-                result = null;
                 break;
             case "deleteschedule": 
                 if(log) console.log("PROCESS SLASH COMMAND - Delete Schedule");
                 schedule = new Schedule();
                 await schedule.deleteSchedule(this);
-                result = null;
                 break;
             case "runschedule": 
             	// ==#####== USED BY THE SCHEDULED JOB TO SEND ALL JOKES TO ALL CHANNELS NAD ALL WORKSPACES ==#####==
@@ -148,38 +148,18 @@ module.exports = class Event {
                 schedule.day = day ; 
                 schedule.gmt_hour = gmt_hour ;
                 await schedule.runSchedule(this);
-                result = null;
                 break;
             case "version":
                 if(log) console.log("PROCESS SLASH COMMAND - Version");
                 var version = process.env.AWS_LAMBDA_FUNCTION_VERSION ;
                 returntext = "This is version " + version + " of NerdJokes.  Enjoy!" ;
-                await this.slashCommandMessage(returntext);
-                result = null ;
+                await new Message().sendTextMessage(this,returntext);
                 break;
             default: 
                 if(log) console.log("PROCESS SLASH COMMAND - Default");
-                result = "NerdJokes: Unknown Image or Command";
+                returntext = "NerdJokes: Unknown Image or Command";
+                await new Message().sendTextMessage(this,returntext);
         }
-        return result;
-    }
-    
-    
-    async slashCommandMessage(text) {
-        if(log) console.log("SLASH COMMAND MESSAGE");
-        let message_data = {
-            token: this.b_token,
-            replace_original: true,
-            channel: this.channel_id,
-            response_type: 'ephemeral' ,
-            text: text,
-            b_token: this.b_token ,
-            api_method: "chat.postMessage" ,
-            response_url: this.response_url
-        };
-        if(log) console.log("SLASH COMMAND MESSAGE - Result : ", message_data);
-        var message = new Message(message_data);
-        await message.slackApiPost() ;
         return null;
     }
     
@@ -208,6 +188,45 @@ module.exports = class Event {
         // else (this.team_id = "N/A");
         if(this.team_id) this.team_id = (this.env != "PROD") ? this.team_id + "-" + this.env : this.team_id ;
         if(log) console.log("SET TEAM ID : ", this.team_id);
+    }
+    
+    setUserId(){
+        if(log) console.log("SET USER ID ");
+        var userId = null;
+        if (this.user_id) { userId = this.user_id; }
+        else if (this.user) { userId = this.user.id ; }
+        else if(this.authed_user) { userId = this.authed_user.id ; }
+        else if(this.event) { userId = this.event.user_id ; }
+        else { userId = "." ; }
+        if(log) console.log("SET USER ID - userId : ", userId);
+        this.user_id = userId ;
+        return null;
+    }
+    
+    setChannelId(){
+        if(log) console.log("SET CHANNEL ID ");
+        var channelId = null ;
+        if (this.channel_id){ channelId = this.channel_id; } 
+        else if (this.channel){ channelId = this.channel.id ; } 
+        else if (this.event){ channelId = this.event.channel_id ; } 
+        else if (this.view && this.view.private_metadata) { channelId = JSON.parse(this.view.private_metadata).channel_id ; }
+        else { channelId = "." ; }
+        if(log) console.log("SET CHANNEL ID - channelId : ", channelId);
+        this.channel_id = channelId ;
+        return null;
+    }
+    
+    setEventType(){
+        if(log) console.log("SET EVENT TYPE ");
+        var eventType = null;
+        if(this.command && this.text) { eventType = this.command + " " + this.text ; }
+        else if (this.event) { eventType = this.event.type ; }
+        else if (this.view) { eventType = this.view.callback_id ; }
+        else if (this.actions){ eventType = this.actions[0].action_id ; }
+        else if (this.code) { eventType = "app_installed" ; }
+        if(log) console.log("SET EVENT TYPE - eventType : ", eventType);
+        this.event_type = eventType ;
+        return null;
     }
     
     
@@ -310,7 +329,9 @@ module.exports = class Event {
         
         // ==#####== DELETE SCHEDULES ==#####==
         var itemsArray = [];
-        scheds.Items.forEach( async (sched) => {
+        for(var key in scheds.Items) {
+                var sched = scheds.Items[key];
+        // scheds.Items.forEach( async (sched) => {
         // scheds.Items.forEach(async function(sched) {
     		var newitem = {
         		DeleteRequest : {
@@ -318,7 +339,7 @@ module.exports = class Event {
         		}
     		};
     		itemsArray.push(newitem);
-    	});
+    	}
         if(log) console.log("CLEAN UNINSTALL - App Uninstalled - Items", itemsArray);
     	var params = {
         	RequestItems : { [ddbc.jokesScheduleDB] : itemsArray }
@@ -339,44 +360,24 @@ module.exports = class Event {
     
     async logEvent(){
         if(log) console.log("LOG EVENT ");
-        if(this.team_id) {
-            // ==#####== EVENT TYPE ==#####==
-            var eventType = null;
-            if(this.command && this.text) { eventType = this.command + " " + this.text ; }
-            else if (this.event) { eventType = this.event.type ; }
-            else if (this.view) { eventType = this.view.callback_id ; }
-            else if (this.actions){ eventType = this.actions[0].action_id ; }
-            else if (this.code) { eventType = "app_installed" ; }
-            if(log) console.log("LOG EVENT  - eventType : ", eventType);
-            // ==#####== USER ID ==#####==
-            var userId = null;
-            if (this.user_id) { userId = this.user_id; }
-            else if (this.user) { userId = this.user.id ; }
-            else if(this.authed_user) { userId = this.authed_user.id ; }
-            else { userId = "." ; }
-            if(log) console.log("LOG EVENT  - userId : ", userId);
-            // ==#####== CHANNEL ID ==#####==
-            var channelId = null ;
-            if (this.channel_id){ channelId = this.channel_id; } 
-            else if (this.channel){ channelId = this.channel.id ; } 
-            else if (this.view && this.view.private_metadata) { channelId = JSON.parse(this.view.private_metadata).channel_id ; }
-            else { channelId = "." ; }
-            if(log) console.log("LOG EVENT  - channelId : ", channelId);
-            // ==#####== LOG TO DYNAMO ==#####==
-            var ddbc = new AWS.DDBCLIENT();
-            var logged = await ddbc.writeToDynamo({
-                tablename: ddbc.jokesLogDB,
-                item: {
-                    team_id : this.team_id ,
-                    log_id: Date.now().valueOf().toString() ,
-                    event_type : eventType ,
-                    user_id : userId ,
-                    channel_id : channelId 
-                }
-            });
-            if(log) console.log("LOG EVENT  - Logged : ", logged);
-        } else {
-            if(log) console.log("LOG EVENT  - No team_id ");
+        if(this.env != "DEV"){
+            if(this.team_id) {
+                // ==#####== LOG TO DYNAMO ==#####==
+                var ddbc = new AWS.DDBCLIENT();
+                var logged = await ddbc.writeToDynamo({
+                    tablename: ddbc.jokesLogDB,
+                    item: {
+                        team_id : this.team_id ,
+                        log_id: Date.now().valueOf().toString() ,
+                        event_type : this.event_type ,
+                        user_id : this.user_id ,
+                        channel_id : this.channel_id 
+                    }
+                });
+                if(log) console.log("LOG EVENT  - Logged : ", logged);
+            } else {
+                if(log) console.log("LOG EVENT  - No team_id ");
+            }
         }
         return null;
     }
