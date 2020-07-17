@@ -27,6 +27,7 @@ exports.handler = async function(data, context) {
     } else if(event.command && event.text && event.text == "getjokejson"){
         // ==#####== SKIP OVER ACCESS TOKEN ==#####==
         // ==#####== THIS IS FOR NERDJOKES ALEXA SKILL ==#####==
+        // ==#####== OR OTHER NON SLACK API REQUEST ==#####==
     } else if(event.team_id){
         if(log) console.log("NERDJOKES - Getting Access Token");
         event.b_token = await event.getAccessToken();
@@ -93,14 +94,10 @@ exports.handler = async function(data, context) {
     if(event.command) {
         if(log) console.log("NERDJOKES - Slash Command");
         if((event.command == "/nerdjokes") || (event.command == "/nerdjokesdev")){
-            if(event.text) {
-                // ==#####== SLASH COMMAND WITH TEXT ==#####==
-                result = await event.processSlashCommand();
-            } else if (event.text.length == 0) {
-                // ==#####== SEND RANDOM JOKE ==#####==
-                event.text = "getjoke";
-                result = await event.processSlashCommand();
-            }
+            // ==#####== SET COMMAND TEXT IF BLANK ==#####==
+            if (event.text.length == 0) event.text = "getjoke";
+            // ==#####== PROCESS SLASH COMMAND ==#####==
+            result = await event.processSlashCommand();
             // ==#####== LOG EVENT ==#####==
             await event.logEvent();
         } 

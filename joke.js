@@ -246,9 +246,11 @@ module.exports = class Joke {
         var a = event.view.state.values.newjoke_answer_block.newjoke_answer.value.replace(/\+/g, ' ') ;
         var tags = event.view.state.values.newjoke_tags_block.newjoke_tags_selected.selected_options ; // array
         var tags_set = [];
-        tags.forEach(async function(tag) {
+        for(var key in tags) {
+            var tag = tags[key];
+        //tags.forEach(async function(tag) {
             tags_set.push(tag.value);
-        });
+        }
         if(event.team.id == "T011Q2H2HQ8" && event.user.id == "U011Q2H2KG8"){
             var ddbc = new AWS.DDBCLIENT();
             await ddbc.writeToDynamo({
@@ -278,20 +280,9 @@ module.exports = class Joke {
 
     async addNewJokeThankYou(event){
         if(log) console.log("ADD NEW JOKE THANK YOU ");
-        var prvmeta = JSON.parse(event.view.private_metadata);
-        let message_data = {
-            token: event.b_token,
-            replace_original: true,
-            channel: prvmeta.channel_id,
-            response_type: 'ephemeral' ,
-            text: "Thank you for submitting a new NerdJoke!",
-            b_token: event.b_token ,
-            api_method: "chat.postMessage" ,
-            response_url: event.response_url
-        };
-        if(log) console.log("ADD NEW JOKE THANK YOU - Result : ", message_data);
-        var message = new Message(message_data);
-        await message.slackApiPost() ;
+        var returntext = "Thank you for submitting a new NerdJoke!" ;
+        await new Message().sendTextMessage(event,returntext);
+       
         return null;
     }
 
@@ -305,12 +296,22 @@ module.exports = class Joke {
         if(log) console.log("SEND JOKE " );
         // const joke = await this.getJoke();
         const sendquestion = await this.sendJokeQuestion(event);
-        await this.sendJokeAnswer(event, sendquestion.message.ts );
+        if(sendquestion.error){
+            await this.sendJokeError(event);
+        } else {
+            var my_ts;
+            if (await sendquestion) {
+                if (await sendquestion.message) {
+                    my_ts = await sendquestion.message.ts;
+                } else {
+                    my_ts = await sendquestion.ts;
+                }
+            }
+            await this.sendJokeAnswer(event, my_ts );
+        }
         return null;
     }
 
-
-    // TODO: Check if private channel, and if app is a member, otherwise you get an error
 
     async sendJokeQuestion(event){
         if(log) console.log("SEND JOKE QUESTION ");
@@ -319,7 +320,7 @@ module.exports = class Joke {
             replace_original: true,
             channel: event.channel_id,
             response_type: 'in_channel' ,
-            text: this.question ,
+            text: this.question.replace(/\'/g, "\\'") ,
             b_token: event.b_token ,
             api_method: "chat.postMessage" ,
         };
@@ -338,7 +339,7 @@ module.exports = class Joke {
             replace_original: true,
             channel: event.channel_id,
             response_type: 'in_channel' ,
-            text: this.answer ,
+            text: this.answer.replace(/\'/g, "\\'") ,
             b_token: event.b_token ,
             api_method: "chat.postMessage" ,
             thread_ts: q_ts 
@@ -348,6 +349,15 @@ module.exports = class Joke {
         await message.slackApiPost() ;
         return null;
     }
-
+    
+    
+    async sendJokeError(event){
+        if(log) console.log("SEND JOKE ERROR ");
+        var returntext = "NerdJokes Error: \n" + 
+            "You have tried to send a NerdJoke in a channel that NerdJokes is not a member. \n" + 
+            "Please add NerdJokes to this channel by typing '/invite @NerdJokes' or try using another channel. ";
+        await new Message().sendTextMessage(event, returntext);
+        return null;
+    }
  
 };
