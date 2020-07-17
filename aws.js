@@ -293,6 +293,7 @@ class S3 {
             Prefix: data.team_id + "/"
         };
         const listedObjects = await S3.listObjectsV2(listParams).promise();
+
         if (listedObjects.Contents.length === 0) return null;
         const deleteParams = {
             Bucket: data.bucket,
@@ -307,6 +308,7 @@ class S3 {
     
     async getS3ItemCount(data){
         if(log) console.log("getS3ItemCount - Event : ", data);
+
         var params = { 
             Bucket: data.bucket, 
             Prefix: data.team_id + "/" 

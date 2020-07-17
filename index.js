@@ -112,6 +112,9 @@ exports.handler = async function(data, context) {
         isBase64Encoded: false,
         statusCode: 200,
         headers: {
+            "Access-Control-Allow-Origin": "*",
+            // "Access-Control-Allow-Methods": "GET,HEAD,OPTIONS,POST,PUT",
+            // "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept, Authorization",
             "Content-type": "application/json; charset=utf-8",
             "Authorization": "Bearer " + event.b_token
         }
