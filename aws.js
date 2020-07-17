@@ -215,7 +215,6 @@ class S3 {
     constructor(){
         if(log) console.log("AWS S3 CONSTRUCTOR");
         this.S3 = new AWS.S3();
-        this.stkrS3Bucket = "stkr-bucket";
         return this ;
     }
     
@@ -288,66 +287,38 @@ class S3 {
       
     }
     
-    async emptyS3Directory(data){
-        if(log) console.log("EMPTY S3 DIRECTORY");
+    async emptyS3Directory(data) {
         const listParams = {
             Bucket: data.bucket,
             Prefix: data.team_id + "/"
         };
-        const listedObjects = await this.S3.listObjectsV2(listParams).promise();
-        if(log) console.log("EMPTY S3 DIRECTORY - Listed Objects : ", listedObjects);
+        const listedObjects = await S3.listObjectsV2(listParams).promise();
+
         if (listedObjects.Contents.length === 0) return null;
         const deleteParams = {
             Bucket: data.bucket,
             Delete: { Objects: [] }
         };
-        for(var key in listedObjects.Contents) {
-            var thisObj = listedObjects.Contents[key];
-            deleteParams.Delete.Objects.push({ Key : thisObj.Key });
-        }
-        /* listedObjects.Contents.forEach(({ Key }) => {
+        listedObjects.Contents.forEach(({ Key }) => {
             deleteParams.Delete.Objects.push({ Key });
-        }); */
-        if(log) console.log("EMPTY S3 DIRECTORY - Delete Params : ", JSON.stringify(deleteParams));
-        return new Promise((resolve, reject) => {
-            this.S3.deleteObjects( deleteParams, async (error, retdata) => {
-                if (error) {
-                    console.log("EMPTY S3 DIRECTORY - Error", JSON.stringify(error));
-                    console.log("EMPTY S3 DIRECTORY - ERROR Code : ", JSON.stringify(error.code));
-                    console.log("EMPTY S3 DIRECTORY - ERROR Message : ", JSON.stringify(error.message));
-                    console.log("EMPTY S3 DIRECTORY - ERROR Stack : ", JSON.stringify(error.stack));
-                    reject(error);
-                } else {
-                    if(log) console.log("EMPTY S3 DIRECTORY - Successful ");
-                    if (listedObjects.IsTruncated) await this.emptyS3Directory(data);
-                    resolve(retdata);
-                }
-            });
         });
+        await this.S3.deleteObjects(deleteParams).promise();
+        if (listedObjects.IsTruncated) await this.emptyS3Directory(data);
     }
     
     async getS3ItemCount(data){
-        if(log) console.log("GET S3 ITEM COUNT - Event : ", data);
+        if(log) console.log("getS3ItemCount - Event : ", data);
+
         var params = { 
             Bucket: data.bucket, 
             Prefix: data.team_id + "/" 
         };
-        return new Promise((resolve, reject) => {
-            this.S3.listObjectsV2(params, (error, retdata) => {
-                if (error) {
-                    console.log("GET S3 ITEM COUNT - Error", JSON.stringify(error));
-                    console.log("GET S3 ITEM COUNT - ERROR Code : ", JSON.stringify(error.code));
-                    console.log("GET S3 ITEM COUNT - ERROR Message : ", JSON.stringify(error.message));
-                    console.log("GET S3 ITEM COUNT - ERROR Stack : ", JSON.stringify(error.stack));
-                    reject(error);
-                } else {
-                    if(log) console.log("GET S3 ITEM COUNT - Success");
-                    var image_count = retdata.Contents.length ;
-                    if(log) console.log("GET S3 ITEM COUNT - Image Count : ", image_count);
-                    resolve(image_count);
-                }
-            });
-        });
+        let retdata;
+        let items = 0;
+        retdata = await this.S3.listObjectsV2(params).promise();
+        items = retdata.Contents.length ;
+        if(log) console.log("getS3ItemCount - Image Count : ", items);
+        return(items);
     }
     
     async getS3ItemList(data){

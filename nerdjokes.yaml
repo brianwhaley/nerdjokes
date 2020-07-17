@@ -16,7 +16,7 @@ Resources:
         Schedule1:
           Type: Schedule
           Properties:
-            Schedule: cron(0 0-23 * * ? *)
+            Schedule: cron(0-59 0-23 * * ? *)
         Api1:
           Type: Api
           Properties:

@@ -133,11 +133,9 @@ module.exports = class Schedule {
             if(log) console.log("ADD NEW SCHEDULE MESSAGE - Schedule : ", schedule);
             // ==#####== SET DAYS ==#####==
             _view.blocks[2].element.initial_options = [];
-            // schedule.days.values.forEach(async function(day) {
-            for(var key in schedule.days.values) {
-                var day = schedule.days.values[key];
+            schedule.days.values.forEach(async function(day) {
                 _view.blocks[2].element.initial_options.push(_view.blocks[2].element.options[day]);
-            }
+            });
             // ==#####== SET TIME ==#####==
             _view.blocks[3].element.initial_option = _view.blocks[3].element.options[parseInt(schedule.hour, 10)];
             // ==#####== SET TIMEZONE ==#####==
@@ -210,16 +208,14 @@ module.exports = class Schedule {
         
         var days = event.view.state.values.newjokeschedule_days.newjokeschedule_days_selected.selected_options ; // array
         var days_set = [];
-        for(var key in days) {
-            var day = days[key];
-        // days.forEach(async function(day) {
+        days.forEach(async function(day) {
             days_set.push(parseInt(day.value, 10));
-        }
+        });
         if(log) console.log("ADD NEW SCHEDULE SUBMIT - New Joke Schedule Submitted - Days : ", days_set.toString());
         var hour = event.view.state.values.newjokeschedule_time.newjokeschedule_time_selected.selected_option.value ; // str to num
         var tz = event.view.state.values.newjokeschedule_timezone.newjokeschedule_timezone_selected.selected_option.value ; // str to num
         var _gmt_hour = parseInt(hour, 10) - ( parseInt(tz, 10) ) ;
-        if (_gmt_hour >= 24) _gmt_hour = _gmt_hour - 24 ;
+        if (_gmt_hour > 24) _gmt_hour = _gmt_hour - 24 ;
         
         var ddbc = new AWS.DDBCLIENT();
         await ddbc.writeToDynamo({
@@ -240,9 +236,21 @@ module.exports = class Schedule {
     
     
     async addNewScheduleThankYou(event){
-        if(log) console.log("ADD NEW SCHEDULE THANK YOU ");
-        var returntext = "The joke schedule for this channel has been successfully created." ;
-        await new Message().sendTextMessage(event,returntext);
+        if(log) console.log("ADD NEW SCHEDULE THANK YOU - Event ");
+        var prvmeta = JSON.parse(event.view.private_metadata);
+        let message_data = {
+            token: event.b_token,
+            replace_original: true,
+            channel: prvmeta.channel_id,
+            response_type: 'ephemeral' ,
+            text: "The joke schedule for this channel has been successfully created." ,
+            b_token: event.b_token ,
+            api_method: "chat.postMessage" ,
+            response_url: event.response_url
+        };
+        if(log) console.log("ADD NEW SCHEDULE THANK YOU - Result : ", message_data);
+        var message = new Message(message_data);
+        await message.slackApiPost();
         return null;
     }
     
@@ -276,15 +284,19 @@ module.exports = class Schedule {
 
     async deleteSchedule(event){
         if(log) console.log("DELETE SCHEDULE ");
+        let message_data;
+        let postData;
         var hasSchedule = await this.getSchedule(event);
         if(hasSchedule) {
-            var message_data = await this.deleteScheduleMessage(event);
+            message_data = await this.deleteScheduleMessage(event);
             if(log) console.log("DELETE SCHEDULE - Message : ", message_data);
-            var message = new Message(message_data);
-            await message.slackApiPost();
         } else {
-            await this.noScheduleMessage(event);
+            message_data = await this.noScheduleMessage(event);
+            if(log) console.log("DELETE SCHEDULE - Message : ", message_data);
         }
+        if(log) console.log("DELETE SCHEDULE - Post Data : ", postData);
+        var message = new Message(message_data);
+        await message.slackApiPost();
         return null;
     }
 
@@ -364,9 +376,18 @@ module.exports = class Schedule {
 
     async noScheduleMessage(event){
         if(log) console.log("NO SCHEDULE MESSAGE ");
-        var returntext = "There is no schedule for this channel to be deleted." ;
-        await new Message().sendTextMessage(event,returntext);
-        return null;
+        let message = {
+            token: event.b_token,
+            replace_original: true,
+            channel: event.channel_id,
+            response_type: 'ephemeral' ,
+            text: "There is no schedule for this channel to be deleted.",
+            b_token: event.b_token ,
+            api_method: "chat.postMessage" ,
+            response_url: event.response_url
+        };
+        if(log) console.log("NO SCHEDULE MESSAGE - Result : ", message);
+        return (message);
     }
 
 
@@ -389,9 +410,23 @@ module.exports = class Schedule {
 
 
     async deleteScheduleThankYou(event){
-        if(log) console.log("DELETE SCHEDULE THANK YOU ");
-        var returntext = "The joke schedule for this channel has been successfully deleted." ;
-        await new Message().sendTextMessage(event,returntext);
+        if(log) console.log("DELETE SCHEDULE THANK YOU - Event  ");
+        var prvmeta = JSON.parse(event.view.private_metadata);
+        let message_data = {
+            token: event.b_token,
+            replace_original: true,
+            channel: prvmeta.channel_id,
+            response_type: 'ephemeral' ,
+            text: "The joke schedule for this channel has been successfully deleted.",
+            b_token: event.b_token ,
+            api_method: "chat.postMessage" ,
+            response_url: event.response_url
+        };
+        if(log) console.log("DELETE SCHEDULE THANK YOU - Result : ", message_data);
+        
+        var message = new Message(message_data);
+        await message.slackApiPost();
+        
         return null;
     }
 

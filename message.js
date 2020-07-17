@@ -10,19 +10,8 @@ module.exports = class Message {
     constructor(props){
         this.message = {};
         if(log) console.log("MESSAGE CONSTRUCTOR");
-        if(props){
-            if(log) console.log("MESSAGE CONSTRUCTOR props : ", props);
-            this.load(props);
-        }
-        return this ;
-    }
-
-
-    load(props){
-        if(log) console.log("MESSAGE LOAD");
-        if(log) console.log("MESSAGE LOAD props : ", props);
+        if(log) console.log("MESSAGE CONSTRUCTOR props : ", props);
         (props.token) ? this.token = props.token : null ;
-        (props.token) ? this.message.token = props.token : null ;
         (props.client_id) ? this.message.client_id = props.client_id : null ;
         (props.client_secret) ? this.message.client_secret = props.client_secret : null ;
         (props.code) ? this.message.code = props.code : null ;
@@ -34,7 +23,6 @@ module.exports = class Message {
         (props.return_im) ? this.message.return_im = props.return_im : null ;
         (props.trigger_id) ? this.message.trigger_id = props.trigger_id : null ;
         (props.channel) ? this.message.channel = props.channel : null ;
-        (props.user) ? this.message.user = props.user : null ;
         (props.users) ? this.message.users = props.users : null ;
         
         (props.text) ? this.message.text = props.text : null ; 
@@ -53,27 +41,7 @@ module.exports = class Message {
             this.option_data.url = "https://slack.com/api/" + props.api_method;
         }
         if(log) console.log("MESSAGE CONSTRUCTOR - This Option Data : ", this.option_data);
-        return null;
-    }
-    
-    
-    async sendTextMessage(event, text) {
-        if(log) console.log("SEND TEXT MESSAGE");
-        let message_data = {
-            token: event.b_token,
-            replace_original: true,
-            channel: event.channel_id ,
-            response_type: 'ephemeral' ,
-            text: text,
-            b_token: event.b_token ,
-            api_method: "chat.postMessage" ,
-            trigger_id: event.trigger_id ,
-            response_url: event.response_url
-        };
-        if(log) console.log("SEND TEXT MESSAGE - Result : ", message_data);
-        await this.load(message_data);
-        await this.slackApiPost() ;
-        return null;
+        return this ;
     }
     
     
@@ -86,7 +54,6 @@ module.exports = class Message {
             headers: {
                 "Authorization": "Bearer " + this.option_data.b_token,
                 "Content-Type": "application/json; charset=utf-8", 
-                // "Access-Control-Allow-Origin": "*",
                 "Content-Length": JSON.stringify(this.message).length
             }
         };
